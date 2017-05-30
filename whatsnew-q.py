@@ -18,17 +18,21 @@ import threading
 import webbrowser
 import Feed
 import Qtrac
+import Spider
+
 
 
 def main():
     limit, concurrency, url, deep = handle_commandline()
-    Qtrac.report("starting...")
-    filename = os.path.join(os.path.dirname(__file__), "whatsnew.dat")
+    Qtrac.report("starting...", True)
+    Qtrac.report("url: {}, deep: {}".format(url, deep), True)
+    # filename = os.path.join(os.path.dirname(__file__), "whatsnew.dat")
     jobs = queue.Queue()
     results = queue.Queue()
-    create_threads(limit, jobs, results, concurrency)
-    todo = add_jobs(filename, jobs)
-    process(todo, jobs, results, concurrency)
+    create_threads(limit, jobs, results, concurrency, deep)
+    # todo = add_jobs(filename, jobs)
+    init_jobs(url, jobs)
+    process(jobs, results, concurrency)
 
 
 def handle_commandline():
@@ -47,50 +51,61 @@ def handle_commandline():
     return args.limit, args.concurrency, args.url, args.deep
 
 
-def create_threads(limit, jobs, results, concurrency):
+def create_threads(limit, jobs, results, concurrency, deep):
     for _ in range(concurrency):
-        thread = threading.Thread(target=worker, args=(limit, jobs,
-                results))
+        thread = threading.Thread(target=worker, args=(jobs,
+                results,deep))
         thread.daemon = True
         thread.start()
 
 
-def worker(limit, jobs, results):
+def worker(jobs, results, deep):
     while True:
         try:
-            feed = jobs.get()
-            ok, result = Feed.read(feed, limit)
+            now_deep, url = jobs.get()
+            ok, result = Spider.read(url)
+            # results.put(websites)
+
+            # ok, result = Feed.read(-, limit)
             if not ok:
                 Qtrac.report(result, True)
             elif result is not None:
-                Qtrac.report("read {}".format(result[0][4:-6]))
-                results.put(result)
+                Qtrac.report("read {}".format(url))
+                for w in result:
+                    results.put(w.path)
+                    if now_deep < deep:
+                        jobs.put((now_deep+1, w.url))
         finally:
             jobs.task_done()
 
 
-def add_jobs(filename, jobs):
-    for todo, feed in enumerate(Feed.iter(filename), start=1):
-        jobs.put(feed)
-    return todo
+def init_jobs(url, jobs):
+    jobs.put((0, url))
+    Qtrac.report("jobs init success, first url:{}".format(url), True)
 
 
-def process(todo, jobs, results, concurrency):
+# def add_jobs(filename, jobs):
+#     for todo, feed in enumerate(Feed.iter(filename), start=1):
+#         jobs.put(feed)
+#     return todo
+
+
+def process(jobs, results, concurrency):
     canceled = False
     try:
         jobs.join() # Wait for all the work to be done
     except KeyboardInterrupt: # May not work on Windows
         Qtrac.report("canceling...")
         canceled = True
-    if canceled:
-        done = results.qsize()
-    else:
-        done, filename = output(results)
-    Qtrac.report("read {}/{} feeds using {} threads{}".format(done, todo,
+    # if canceled:
+    #     done = results.qsize()
+    # else:
+    #     done, filename = output(results)
+    Qtrac.report("read {} webpages using {} threads{}".format(results.qsize(),
             concurrency, " [canceled]" if canceled else ""))
     print()
-    if not canceled:
-        webbrowser.open(filename)
+    # if not canceled:
+    #     webbrowser.open(filename)
 
 
 def output(results):
