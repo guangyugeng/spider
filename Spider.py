@@ -1,14 +1,3 @@
-#!/usr/bin/env python3
-# Copyright © 2012-13 Qtrac Ltd. All rights reserved.
-# This program or module is free software: you can redistribute it
-# and/or modify it under the terms of the GNU General Public License as
-# published by the Free Software Foundation, either version 3 of the
-# License, or (at your option) any later version. It is provided for
-# educational purposes and is distributed in the hope that it will be
-# useful, but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-# General Public License for more details.
-
 import argparse
 import multiprocessing
 import os
@@ -23,14 +12,12 @@ import Website
 
 
 def main():
-    limit, concurrency, url, deep = handle_commandline()
+    limit, concurrency, url, deep, key = handle_commandline()
     Qtrac.report("starting...", True)
     Qtrac.report("url: {}, deep: {}".format(url, deep), True)
-    # filename = os.path.join(os.path.dirname(__file__), "whatsnew.dat")
     jobs = queue.Queue()
     results = queue.Queue()
-    create_threads(limit, jobs, results, concurrency, deep)
-    # todo = add_jobs(filename, jobs)
+    create_threads(jobs, results, concurrency, deep ,key)
     init_jobs(url, jobs)
     process(jobs, results, concurrency)
 
@@ -47,28 +34,29 @@ def handle_commandline():
             help="指定爬虫开始地址 [default: %(default)s]")
     parser.add_argument("-d", "--deep", type=int, default=0,
             help="指定爬虫深度 [default: %(default)d]")
+    parser.add_argument("-k", "--key", type=str, default="all",
+            help="指定关键词 [default: %(default)d]")
     args = parser.parse_args()
-    return args.limit, args.concurrency, args.url, args.deep
+    return args.limit, args.concurrency, args.url, args.deep, args.key
 
 
-def create_threads(limit, jobs, results, concurrency, deep):
+def create_threads(jobs, results, concurrency, deep, key):
     for _ in range(concurrency):
         thread = threading.Thread(target=worker, args=(jobs,
-                results,deep))
+                results,deep,key))
         thread.daemon = True
         thread.start()
 
 
-def worker(jobs, results, deep):
+def worker(jobs, results, deep, key):
     while True:
         try:
             now_deep, url = jobs.get()
-            ok, result = Website.read(url)
+            ok, result = Website.read(url, key)
             # Qtrac.report('worker {} {}'.format(result, ok), True)
             # Qtrac.report('result {}'.format(result is not None), True)
             # results.put(websites)
 
-            # ok, result = Feed.read(-, limit)
             if not ok:
                 Qtrac.report(result, True)
             elif result is not None:
@@ -86,12 +74,6 @@ def init_jobs(url, jobs):
     Qtrac.report("jobs init success, first url:{}".format(url), True)
 
 
-# def add_jobs(filename, jobs):
-#     for todo, feed in enumerate(Feed.iter(filename), start=1):
-#         jobs.put(feed)
-#     return todo
-
-
 def process(jobs, results, concurrency):
     canceled = False
     try:
@@ -104,26 +86,8 @@ def process(jobs, results, concurrency):
     # else:
     #     done, filename = output(results)
     Qtrac.report("read {} webpages using {} threads{}".format(results.qsize(),
-            concurrency, " [canceled]" if canceled else ""))
-    print()
-    # if not canceled:
-    #     webbrowser.open(filename)
-
-
-def output(results):
-    done = 0
-    filename = os.path.join(tempfile.gettempdir(), "whatsnew.html") 
-    with open(filename, "wt", encoding="utf-8") as file:
-        file.write("<!doctype html>\n")
-        file.write("<html><head><title>What's New</title></head>\n")
-        file.write("<body><h1>What's New</h1>\n")
-        while not results.empty(): # Safe because all jobs have finished
-            result = results.get_nowait()
-            done += 1
-            for item in result:
-                file.write(item)
-        file.write("</body></html>\n")
-    return done, filename
+            concurrency, " [canceled]" if canceled else ""), True)
+    Qtrac.report("results {}".format(results.__str__()))
 
 
 if __name__ == "__main__":

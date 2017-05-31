@@ -6,26 +6,29 @@ import urllib.request
 import socket
 from uuid import uuid3, NAMESPACE_DNS
 import Qtrac
+import re
+
 
 Webpage = collections.namedtuple("webpage",["title", "url", "path"])
 
 
-def read(url):
-    # print('starting..')
-    ok, path = _cached_url(url)
-    # print('first finish..')
+def read(url, key):
+    ok, path = _cached_url(url, key)
     if ok:
         with open(path, 'rb') as f:
             page = f.read()
             # Qtrac.report('page {}'.format(page), True)
             e = pq(page)
-            websites = [_parse(a) for a in e('a').items()]
+            websites = [_parse(a, key) for a in e('a').items()]
+            websites = [w for w in websites if w is not None]
+            # Qtrac.report('websites {}'.format(websites), True)
+
             return ok, websites
     else:
         return ok, path
 
 
-def _cached_url(url):
+def _cached_url(url, key):
     """
     缓存, 避免重复下载网页浪费时间
     """
@@ -37,9 +40,9 @@ def _cached_url(url):
     Qtrac.report('cached {}'.format(filename))
     path = os.path.join(folder, filename)
     if os.path.exists(path):
-        # with open(path, 'rb') as f:
-        #     s = f.read()
-        # Qtrac.report('exists {}'.format(path), True)
+        with open(path, 'rb') as f:
+            s = f.read()
+            Qtrac.report('exists {}'.format(type(s)), True)
         return True, path
     else:
         # 建立 cached 文件夹
@@ -52,7 +55,7 @@ def _cached_url(url):
             r = urllib.request.urlopen(url, None, 10)
             # Qtrac.report('r {}'.format(r), True)
             content = r.read()
-            # Qtrac.report('content'.format(content), True)
+            Qtrac.report('content {}'.format(type(content)), True)
 
             with open(path, 'wb') as f:
                 f.write(content)
@@ -60,24 +63,21 @@ def _cached_url(url):
         except (ValueError, urllib.error.HTTPError, urllib.error.URLError,
                 socket.timeout) as err:
             return False, "Error: {}: {}".format(url, err)
-        # r = requests.get(url)
-    # return r.content
 
 
-def _parse(a):
+def _parse(a, key):
     url = a.attr('href')
     title = a.val()
-    _, path = _cached_url(url)
+    ok, path = _cached_url(url, key)
     Qtrac.report('parse {} {} {}'.format(url, title, path))
-    w = Webpage(title, url, path)
-    return w
+    if ok:
+        w = Webpage(title, url, path)
+        return w
+    else:
+        return None
 
 
 # def main():
-#     # for i in range(0, 250, 25):
-#     #     url = 'https://movie.douban.com/top250?start={}'.format(i)
-#     #     movies = movies_from_url(url)
-#     #     print('top250 movies', movies)
 #     read('https://movie.douban.com/top250?start=1')
 #
 #
