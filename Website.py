@@ -17,21 +17,15 @@ def read(url, key):
     if ok:
         with open(path, 'rb') as f:
             page = f.read()
-            # Qtrac.report('page {}'.format(page), True)
             e = pq(page)
             websites = [_parse(a, key) for a in e('a').items()]
             websites = [w for w in websites if w is not None]
-            # Qtrac.report('websites {}'.format(websites), True)
-
             return ok, websites
     else:
         return ok, path
 
 
 def _cached_url(url, key):
-    """
-    缓存, 避免重复下载网页浪费时间
-    """
     folder = 'cached'
     try:
         filename  = str(uuid3(NAMESPACE_DNS, url)).replace('-','')+'.html'
@@ -40,23 +34,16 @@ def _cached_url(url, key):
     Qtrac.report('cached {}'.format(filename))
     path = os.path.join(folder, filename)
     if os.path.exists(path):
-        with open(path, 'rb') as f:
-            s = f.read()
-            Qtrac.report('exists {}'.format(type(s)), True)
+        # with open(path, 'rb') as f:
+        #     s = f.read()
         return True, path
     else:
-        # 建立 cached 文件夹
         if not os.path.exists(folder):
             os.makedirs(folder)
-        # 发送网络请求, 把结果写入到文件夹中
         try:
-            # Qtrac.report('mkr {}'.format(path), True)
-            # with  as file:
             r = urllib.request.urlopen(url, None, 10)
-            # Qtrac.report('r {}'.format(r), True)
             content = r.read()
             Qtrac.report('content {}'.format(type(content)), True)
-
             with open(path, 'wb') as f:
                 f.write(content)
             return True, path

@@ -2,10 +2,7 @@ import argparse
 import multiprocessing
 import os
 import queue
-import tempfile
 import threading
-import webbrowser
-import Feed
 import Qtrac
 import Website
 
@@ -53,14 +50,9 @@ def worker(jobs, results, deep, key):
         try:
             now_deep, url = jobs.get()
             ok, result = Website.read(url, key)
-            # Qtrac.report('worker {} {}'.format(result, ok), True)
-            # Qtrac.report('result {}'.format(result is not None), True)
-            # results.put(websites)
-
             if not ok:
                 Qtrac.report(result, True)
             elif result is not None:
-                # Qtrac.report("read {}".format(url), True)
                 for w in result:
                     results.put(w.path)
                     if now_deep < deep:
@@ -81,10 +73,6 @@ def process(jobs, results, concurrency):
     except KeyboardInterrupt: # May not work on Windows
         Qtrac.report("canceling...")
         canceled = True
-    # if canceled:
-    #     done = results.qsize()
-    # else:
-    #     done, filename = output(results)
     Qtrac.report("read {} webpages using {} threads{}".format(results.qsize(),
             concurrency, " [canceled]" if canceled else ""), True)
     Qtrac.report("results {}".format(results.__str__()))
